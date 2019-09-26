@@ -2,7 +2,7 @@
 
 ReadAndFilter
 
-sh execute.sh <inputFilePath> <inputArrayFilePath>
+sh execute.sh   inputFilePath   inputArrayFilePath
 
 Example
 
