@@ -1,4 +1,5 @@
 
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -17,7 +18,8 @@ public class ReadAndFilter {
 
         File inputFile = getFile(args[0]);//"/Users/prateekm/Desktop/testFile");
         File inputArrayFile = getFile(args[1]);//"/Users/prateekm/Desktop/input_file");
-       
+        printFile(inputFile);
+        printFile(inputArrayFile);
 
         String seperator = "@";
 
@@ -37,6 +39,14 @@ public class ReadAndFilter {
             while (null != (line = bufferedReader.readLine())) {
                 //Line Example : -cm_tgl mda @ -cpp, -debug_access
                 String keyVal[] = line.split(seperator); //Split by seperator
+                if(null == keyVal || keyVal.length != 2) {
+                    System.out.println("Excluding line: " + line);
+                    continue;
+                }
+                if(null == keyVal[0] || null == keyVal[1]) {
+                    continue;
+                }
+                
                 String key = keyVal[0].trim();   //ex: -cm_tgl mda
                 String value = keyVal[1].trim();  //ex:  -cpp, -debug_access
 
