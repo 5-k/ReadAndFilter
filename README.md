@@ -8,16 +8,11 @@ Example
 
 sh execute.sh  C:\\Work\file.txt  C:\\Work\inputArrayFile.txt
 
-<Input Array File Example>
- 
- cat input_file 
+#Input Array File Example
  
 -cm_tgl mda, -debug_access, -file, -full64
 
-
-<Input File Example>
- 
- cat testFile 
+#Input File Example
  
 -cm_tgl mda @ -cpp, -debug_access
 
