@@ -1,20 +1,14 @@
-package com.dbs.daas.framework.api.controllers;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.ReduceFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
-import scala.Function1;
-import scala.Function2;
-import scala.Tuple2;
 
 import java.io.*;
-import java.util.Iterator;
+import java.util.*;
 
 
 class Test {
@@ -45,7 +39,7 @@ class Test {
             productFileDataBuilder.append("\n");
         }
         br.close();
-        String productData = productFileDataBuilder.toString().substring(0,productFileDataBuilder.length()-1);
+        String productData = productFileDataBuilder.toString().substring(0, productFileDataBuilder.length() - 1);
 
         br = new BufferedReader(new FileReader(salesFile));
         i = 0;
@@ -59,7 +53,7 @@ class Test {
             salesFileDataBuilder.append("\n");
         }
         br.close();
-        String salesData = salesFileDataBuilder.toString().substring(0,salesFileDataBuilder.length()-1);
+        String salesData = salesFileDataBuilder.toString().substring(0, salesFileDataBuilder.length() - 1);
 
         String salesTempFile = getTempFilePath("sales", salesData);
         String productTempFile = getTempFilePath("product", productData);
@@ -95,31 +89,89 @@ class Test {
         Dataset<Row> productDataSet = sqlContext.createDataFrame(productJavaRDD, Product.class);
         Dataset<Row> salesDataset = sqlContext.createDataFrame(salesRDD, Sales.class);
 
+        List<Product> productList = productJavaRDD.collect();
+        Map<Integer, Product> productMap = new HashMap<>();
+        productList.forEach(t -> productMap.put(t.getId(), t));
 
-        Dataset<Row> joinedDataSet = productDataSet
-                .join(salesDataset, productDataSet.col("id").equalTo(salesDataset.col("product_id")))
-                ;
+        List<Sales> salesList = salesRDD.collect();
 
-        
-        new FlatMapFunction<Row, Row>() {
-            @Override
-            public Iterator<Row> call(Row row) throws Exception {
-                System.out.println("s");
-                return null;
+        //Year -> List of items with all sale
+        Map<Integer, List<TwoValues<Product, Integer>>> map = new HashMap<>();
+
+        for (Sales sale : salesList) {
+            Product product = productMap.get(sale.getProduct_id());
+            int totalSale = sale.getUnits() * product.getUnit_price();
+
+            List<TwoValues<Product, Integer>> list = map.get(sale.getYear());
+
+            if (null == list) {
+                list = new ArrayList<>();
+                list.add(new TwoValues<>(product, totalSale));
+                map.put(sale.getYear(), list);
+            } else {
+                TwoValues<Product, Integer> curentItem = null;
+
+                for (TwoValues<Product, Integer> value : list) {
+                    if (value.getL().getName().equalsIgnoreCase(product.getName())) {
+                        curentItem = value;
+                    }
+                }
+
+                if (null == curentItem) {
+                    curentItem = new TwoValues<>(product, totalSale);
+                    list.add(curentItem);
+                } else {
+                    curentItem.setR(curentItem.getR() + totalSale);
+                }
+
             }
-        };
+        }
 
+        System.out.println("year,top,sale");
+        for(Map.Entry<Integer, List<TwoValues<Product, Integer>>> entry : map.entrySet()) {
+            int maxSales = -1;
+            List<String> products = new ArrayList<>();
 
-        System.out.println("s");
+            for(TwoValues<Product, Integer> value : entry.getValue()) {
+                if(value.getR() > maxSales) {
+                    maxSales = value.getR();
+                    products = new ArrayList<>();
+                    products.add(value.getL().getName());
+                } else if(value.getR() == maxSales) {
+                    products.add(value.getL().getName());
+                }
+            }
 
+            Collections.sort(products);
+            System.out.print(entry.getKey());
+            System.out.print(",");
+
+            if(products.size() == 1) {
+                System.out.print(products.get(0));
+            } else {
+                System.out.print("\"");
+                for(int k = 0  ; k < products.size(); k++) {
+                    System.out.print(products.get(k));
+                    if(k != products.size() -1) {
+                        System.out.print(",");
+                    }
+                }
+                System.out.print("\"");
+
+            }
+
+            System.out.print(",");
+            System.out.print(maxSales);
+            System.out.println("");
+        }
     }
 
-    private static String getTempFilePath(String fileName,String data) throws IOException{
+    private static String getTempFilePath(String fileName, String data) throws IOException {
         String property = "java.io.tmpdir";
         String tempDir = System.getProperty(property);
 
         File dir = new File(tempDir);
-        File filename = File.createTempFile(fileName,".csv",  dir);
+        File filename = File.createTempFile(fileName, ".csv", dir);
         FileWriter fileWriter = new FileWriter(filename, true);
         BufferedWriter bw = new BufferedWriter(fileWriter);
         bw.write(data);
@@ -127,6 +179,34 @@ class Test {
         return filename.getAbsolutePath();
     }
 
+
+    public static class TwoValues<L, R> {
+        L l;
+        R r;
+
+        TwoValues(L l, R r) {
+            this.l = l;
+            this.r = r;
+        }
+
+        public L getL() {
+            return l;
+        }
+
+        public R getR() {
+            return r;
+        }
+
+        public void setR(R r) {
+            this.r = r;
+        }
+    }
+
+    public static class FinalDataSet {
+        private String productId;
+        private List<String> names;
+        private String totalSale;
+    }
 
     public static class Sales implements Serializable {
         private Integer saleId;
