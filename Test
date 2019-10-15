@@ -1,0 +1,190 @@
+package com.dbs.daas.framework.api.controllers;
+
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.ReduceFunction;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
+import scala.Function1;
+import scala.Function2;
+import scala.Tuple2;
+
+import java.io.*;
+import java.util.Iterator;
+
+
+class Test {
+
+    public static void main(String[] args) throws IOException {
+
+        String directory = "/Users/prateekm/Documents/extra";
+        File file = new File(directory);
+        File productFile = null, salesFile = null;
+        for (File f : file.listFiles()) {
+            if (f.getName().startsWith("Product")) {
+                productFile = f;
+            } else if (f.getName().startsWith("Sale")) {
+                salesFile = f;
+            }
+        }
+
+        BufferedReader br = new BufferedReader(new FileReader(productFile));
+        String line = null;
+        int i = 0;
+        StringBuilder productFileDataBuilder = new StringBuilder();
+        while (null != (line = br.readLine())) {
+            if (i == 0) {
+                i++;
+                continue;
+            }
+            productFileDataBuilder.append(line);
+            productFileDataBuilder.append("\n");
+        }
+        br.close();
+        String productData = productFileDataBuilder.toString().substring(0,productFileDataBuilder.length()-1);
+
+        br = new BufferedReader(new FileReader(salesFile));
+        i = 0;
+        StringBuilder salesFileDataBuilder = new StringBuilder();
+        while (null != (line = br.readLine())) {
+            if (i == 0) {
+                i++;
+                continue;
+            }
+            salesFileDataBuilder.append(line);
+            salesFileDataBuilder.append("\n");
+        }
+        br.close();
+        String salesData = salesFileDataBuilder.toString().substring(0,salesFileDataBuilder.length()-1);
+
+        String salesTempFile = getTempFilePath("sales", salesData);
+        String productTempFile = getTempFilePath("product", productData);
+
+        SparkConf sparkConf = new SparkConf().setMaster("local").setAppName("solution");
+        JavaSparkContext sparkContext = new JavaSparkContext(sparkConf);
+
+        SQLContext sqlContext = new SQLContext(sparkContext); // In Spark 1.3 the Java API and Scala API have been unified
+        JavaRDD<Product> productJavaRDD = sparkContext.textFile(productTempFile).map(new Function<String, Product>() {
+            public Product call(String line) throws Exception {
+                String[] fields = line.split(",");
+                Product sd = new Product(Integer.parseInt(fields[0]), fields[1].trim(), Integer.parseInt(fields[2].trim()));
+                return sd;
+            }
+        });
+
+
+        JavaRDD<Sales> salesRDD = sparkContext.textFile(salesTempFile).map(new Function<String, Sales>() {
+            public Sales call(String line) throws Exception {
+
+                String[] fields = line.split(",");
+                Sales sd = new Sales(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]), fields[2].trim(), Integer.parseInt(fields[2].substring(0, fields[2].indexOf("-"))), Integer.parseInt(fields[3].trim()));
+                return sd;
+            }
+        });
+
+        Sales salesHeader = salesRDD.first();
+        salesRDD = salesRDD.filter(row -> (row != salesHeader));
+
+        Product productHeader = productJavaRDD.first();
+        productJavaRDD = productJavaRDD.filter(row -> (row != productHeader));
+
+        Dataset<Row> productDataSet = sqlContext.createDataFrame(productJavaRDD, Product.class);
+        Dataset<Row> salesDataset = sqlContext.createDataFrame(salesRDD, Sales.class);
+
+
+        Dataset<Row> joinedDataSet = productDataSet
+                .join(salesDataset, productDataSet.col("id").equalTo(salesDataset.col("product_id")))
+                ;
+
+        
+        new FlatMapFunction<Row, Row>() {
+            @Override
+            public Iterator<Row> call(Row row) throws Exception {
+                System.out.println("s");
+                return null;
+            }
+        };
+
+
+        System.out.println("s");
+
+    }
+
+    private static String getTempFilePath(String fileName,String data) throws IOException{
+        String property = "java.io.tmpdir";
+        String tempDir = System.getProperty(property);
+
+        File dir = new File(tempDir);
+        File filename = File.createTempFile(fileName,".csv",  dir);
+        FileWriter fileWriter = new FileWriter(filename, true);
+        BufferedWriter bw = new BufferedWriter(fileWriter);
+        bw.write(data);
+        bw.close();
+        return filename.getAbsolutePath();
+    }
+
+
+    public static class Sales implements Serializable {
+        private Integer saleId;
+        private Integer product_id;
+        private String created_at;
+        private Integer year;
+        private Integer units;
+
+        public Sales(Integer saleId, Integer product_id, String created_at, Integer year, Integer units) {
+            this.saleId = saleId;
+            this.product_id = product_id;
+            this.created_at = created_at;
+            this.year = year;
+            this.units = units;
+        }
+
+        public Integer getSaleId() {
+            return saleId;
+        }
+
+        public Integer getProduct_id() {
+            return product_id;
+        }
+
+        public String getCreated_at() {
+            return created_at;
+        }
+
+        public Integer getYear() {
+            return year;
+        }
+
+        public Integer getUnits() {
+            return units;
+        }
+    }
+
+    public static class Product implements Serializable {
+        private Integer id;
+        private String name;
+        private Integer unit_price;
+
+        public Product(Integer id, String name, Integer unit_price) {
+            this.id = id;
+            this.name = name;
+            this.unit_price = unit_price;
+        }
+
+        public Integer getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Integer getUnit_price() {
+            return unit_price;
+        }
+    }
+}
