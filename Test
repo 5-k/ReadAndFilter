@@ -1,12 +1,4 @@
 
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
-
 import java.io.*;
 import java.util.*;
 
@@ -26,6 +18,9 @@ class Test {
             }
         }
 
+        List<Product> productList = new ArrayList<>();
+        List<Sales> salesList = new ArrayList<>();
+
         BufferedReader br = new BufferedReader(new FileReader(productFile));
         String line = null;
         int i = 0;
@@ -37,7 +32,10 @@ class Test {
             }
             productFileDataBuilder.append(line);
             productFileDataBuilder.append("\n");
+            String[] fields = line.split(",");
+            productList.add(new Product(Integer.parseInt(fields[0]), fields[1].trim(), Integer.parseInt(fields[2].trim())));
         }
+
         br.close();
         String productData = productFileDataBuilder.toString().substring(0, productFileDataBuilder.length() - 1);
 
@@ -51,11 +49,13 @@ class Test {
             }
             salesFileDataBuilder.append(line);
             salesFileDataBuilder.append("\n");
+            String[] fields = line.split(",");
+            salesList.add(new Sales(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]), fields[2].trim(), Integer.parseInt(fields[2].substring(0, fields[2].indexOf("-"))), Integer.parseInt(fields[3].trim())));
         }
         br.close();
         String salesData = salesFileDataBuilder.toString().substring(0, salesFileDataBuilder.length() - 1);
 
-        String salesTempFile = getTempFilePath("sales", salesData);
+       /* String salesTempFile = getTempFilePath("sales", salesData);
         String productTempFile = getTempFilePath("product", productData);
 
         SparkConf sparkConf = new SparkConf().setMaster("local").setAppName("solution");
@@ -89,11 +89,14 @@ class Test {
         Dataset<Row> productDataSet = sqlContext.createDataFrame(productJavaRDD, Product.class);
         Dataset<Row> salesDataset = sqlContext.createDataFrame(salesRDD, Sales.class);
 
-        List<Product> productList = productJavaRDD.collect();
+        productList = productJavaRDD.collect();
+        salesList = salesRDD.collect();
+*/
+
         Map<Integer, Product> productMap = new HashMap<>();
         productList.forEach(t -> productMap.put(t.getId(), t));
 
-        List<Sales> salesList = salesRDD.collect();
+
 
         //Year -> List of items with all sale
         Map<Integer, List<TwoValues<Product, Integer>>> map = new HashMap<>();
